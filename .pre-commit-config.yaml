@@ -1,0 +1,22 @@
+files: ^acme-cloudflare/
+
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: Ruff lint (acme-cloudflare)
+        entry: uv run --locked --project acme-cloudflare ruff check --fix
+        language: system
+        types_or: [python, pyi]
+      - id: ruff-format
+        name: Ruff format (acme-cloudflare)
+        entry: uv run --locked --project acme-cloudflare ruff format
+        language: system
+        types_or: [python, pyi]
+      - id: pytest
+        name: pytest (acme-cloudflare)
+        entry: uv run --locked --project acme-cloudflare python -m pytest acme-cloudflare/tests -q
+        language: system
+        files: ^acme-cloudflare/(.*\.py|pyproject\.toml|uv\.lock)$
+        pass_filenames: false
+        require_serial: true

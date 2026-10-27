@@ -3,14 +3,18 @@ import subprocess
 import sys
 from pathlib import Path
 
-from acme_cf.config import load_config
+from acme_cf.config import iter_domains
 
 
-def _run(cmd: list[str], env: dict | None = None, capture: bool = False) -> subprocess.CompletedProcess:
+def _run(
+    cmd: list[str], env: dict | None = None, capture: bool = False
+) -> subprocess.CompletedProcess:
     merged_env = None
     if env is not None:
         merged_env = {**os.environ, **env}
-    return subprocess.run(cmd, env=merged_env, capture_output=capture, text=True)
+    return subprocess.run(
+        cmd, env=merged_env, capture_output=capture, text=True, check=False
+    )
 
 
 def cmd_apply(config: dict, force: bool = False) -> None:
@@ -25,7 +29,7 @@ def cmd_apply(config: dict, force: bool = False) -> None:
         "CF_Account_ID": cf["account_id"],
     }
 
-    for domain in config["domains"]:
+    for domain, _ in iter_domains(config):
         print(f"Issuing cert: {domain}")
 
         cmd = [acme, "--issue", "-d", domain, "--dns", "dns_cf"]
@@ -45,24 +49,31 @@ def cmd_apply(config: dict, force: bool = False) -> None:
 def cmd_install(config: dict) -> None:
     acme = config["acme_script"]
     ssl_path = Path(config["ssl_path"])
-    reload_cmd = config["reload_cmd"]
 
     if not ssl_path.exists():
         ssl_path.mkdir(parents=True, exist_ok=True)
         subprocess.run(["sudo", "chown", "root:www-data", str(ssl_path)], check=False)
         subprocess.run(["sudo", "chmod", "750", str(ssl_path)], check=False)
 
-    for domain in config["domains"]:
+    for domain, reload_cmd in iter_domains(config):
         print(f"Installing cert for: {domain}")
         domain_dir = ssl_path / domain
         domain_dir.mkdir(parents=True, exist_ok=True)
 
-        _run([
-            acme, "--install-cert", "-d", domain,
-            "--key-file", str(domain_dir / "private.pem"),
-            "--fullchain-file", str(domain_dir / "fullchain.pem"),
-            "--reloadcmd", reload_cmd,
-        ])
+        _run(
+            [
+                acme,
+                "--install-cert",
+                "-d",
+                domain,
+                "--key-file",
+                str(domain_dir / "private.pem"),
+                "--fullchain-file",
+                str(domain_dir / "fullchain.pem"),
+                "--reloadcmd",
+                reload_cmd,
+            ]
+        )
 
         _run([acme, "--info", "-d", domain], capture=False)
         print(f"Installed: {ssl_path}/{domain}/")
@@ -72,17 +83,31 @@ def cmd_install(config: dict) -> None:
 
 
 def cmd_check(config: dict) -> None:
-    for domain in config["domains"]:
+    for domain, _ in iter_domains(config):
         print(f"\n[{domain}]")
         try:
             result = subprocess.run(
-                ["openssl", "s_client", "-servername", domain, "-connect", f"{domain}:443"],
-                input="", capture_output=True, text=True, timeout=10,
+                [
+                    "openssl",
+                    "s_client",
+                    "-servername",
+                    domain,
+                    "-connect",
+                    f"{domain}:443",
+                ],
+                input="",
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
             )
             if result.stdout:
                 subprocess.run(
                     ["openssl", "x509", "-noout", "-dates"],
-                    input=result.stdout, capture_output=False, text=True,
+                    input=result.stdout,
+                    capture_output=False,
+                    text=True,
+                    check=False,
                 )
         except subprocess.TimeoutExpired:
             print(f"  timeout connecting to {domain}")
@@ -98,13 +123,21 @@ def cmd_refresh(config: dict) -> None:
 
     result = subprocess.run(
         [
-            "curl", "-s", "-X", "POST",
+            "curl",
+            "-s",
+            "-X",
+            "POST",
             f"https://api.cloudflare.com/client/v4/zones/{zone_id}/purge_cache",
-            "-H", f"Authorization: Bearer {token}",
-            "-H", "Content-Type: application/json",
-            "-d", '{"purge_everything":true}',
+            "-H",
+            f"Authorization: Bearer {token}",
+            "-H",
+            "Content-Type: application/json",
+            "-d",
+            '{"purge_everything":true}',
         ],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if result.stdout:
         print(result.stdout)

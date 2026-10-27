@@ -11,10 +11,19 @@
     "zone_id": "YOUR_ZONE_ID",
     "api_token": "YOUR_CF_API_TOKEN"
   },
+  // Strings use the default reload command; objects can override it per domain
   "domains": [
-    "www.example.com"
+    "www.example.com",
+    {
+      "domain": "api.example.com",
+      "reload_cmd": "sudo systemctl reload caddy"
+    },
+    {
+      "domain": "static.example.com"
+    }
   ],
   // Nginx SSL directory and reload command
   "ssl_path": "/etc/nginx/ssl",
+  // Default for domains without reload_cmd; an empty string disables reload
   "reload_cmd": "sudo systemctl reload nginx"
 }

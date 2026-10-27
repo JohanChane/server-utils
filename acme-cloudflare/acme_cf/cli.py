@@ -7,13 +7,22 @@ from acme_cf.config import load_config
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="acme-cf", description="ACME SSL cert management with Cloudflare DNS")
-    parser.add_argument("-c", "--config", default="config.jsonc", help="path to config.jsonc (default: config.jsonc)")
+    parser = argparse.ArgumentParser(
+        prog="acme-cf", description="ACME SSL cert management with Cloudflare DNS"
+    )
+    parser.add_argument(
+        "-c",
+        "--config",
+        default="config.jsonc",
+        help="path to config.jsonc (default: config.jsonc)",
+    )
 
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_apply = sub.add_parser("apply", help="issue SSL certs via acme.sh")
-    p_apply.add_argument("--force", action="store_true", help="force renew even if not expired")
+    p_apply.add_argument(
+        "--force", action="store_true", help="force renew even if not expired"
+    )
 
     sub.add_parser("install", help="install certs to nginx ssl path")
     sub.add_parser("check", help="check cert expiration via openssl")
