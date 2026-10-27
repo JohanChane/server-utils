@@ -20,3 +20,18 @@ sub-mgr = "main:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.6.2",
+    "pytest>=9.1.1",
+    "ruff>=0.17.3",
+]
+
+[tool.ruff.lint]
+extend-select = ["I"]
+
+[tool.ruff.lint.per-file-ignores]
+# These CLI helpers report failures and continue processing other subscriptions.
+"sub_mgr/core/proxy_restorer.py" = ["BLE001"]
+"sub_mgr/core/sub_mgr.py" = ["BLE001"]

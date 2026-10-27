@@ -64,7 +64,7 @@ uv run pre-commit run --all-files  # 检查全部已跟踪文件
 uv run pre-commit                  # 检查暂存文件
 ```
 
-配置位于仓库根目录的 `.pre-commit-config.yaml`，检查范围限定为 `acme-cloudflare`。
+配置位于仓库根目录的 `.pre-commit-config.yaml`，按项目分别检查 `acme-cloudflare` 和 `sub-mgr`。
 检查依次执行 Ruff lint（含导入排序和自动修复）、Ruff 格式化及 pytest。
 pytest 在 Python 文件、`pyproject.toml` 或 `uv.lock` 变更时运行。
 各检查通过 `uv run --locked --project acme-cloudflare` 使用项目锁定的开发依赖。

@@ -1,4 +1,4 @@
-files: ^acme-cloudflare/
+files: ^(acme-cloudflare|sub-mgr)/
 
 repos:
   - repo: local
@@ -7,16 +7,37 @@ repos:
         name: Ruff lint (acme-cloudflare)
         entry: uv run --locked --project acme-cloudflare ruff check --fix
         language: system
+        files: ^acme-cloudflare/
         types_or: [python, pyi]
       - id: ruff-format
         name: Ruff format (acme-cloudflare)
         entry: uv run --locked --project acme-cloudflare ruff format
         language: system
+        files: ^acme-cloudflare/
         types_or: [python, pyi]
       - id: pytest
         name: pytest (acme-cloudflare)
         entry: uv run --locked --project acme-cloudflare python -m pytest acme-cloudflare/tests -q
         language: system
         files: ^acme-cloudflare/(.*\.py|pyproject\.toml|uv\.lock)$
+        pass_filenames: false
+        require_serial: true
+      - id: ruff-check-sub-mgr
+        name: Ruff lint (sub-mgr)
+        entry: uv run --locked --project sub-mgr ruff check --fix
+        language: system
+        files: ^sub-mgr/
+        types_or: [python, pyi]
+      - id: ruff-format-sub-mgr
+        name: Ruff format (sub-mgr)
+        entry: uv run --locked --project sub-mgr ruff format
+        language: system
+        files: ^sub-mgr/
+        types_or: [python, pyi]
+      - id: pytest-sub-mgr
+        name: pytest (sub-mgr)
+        entry: uv run --locked --project sub-mgr python -m pytest sub-mgr/tests -q
+        language: system
+        files: ^sub-mgr/(.*\.py|pyproject\.toml|uv\.lock)$
         pass_filenames: false
         require_serial: true
