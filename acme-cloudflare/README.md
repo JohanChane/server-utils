@@ -46,6 +46,26 @@ uv run acme-cf list               # 列出 acme.sh 已签发证书
 uv run acme-cf -c /path/to/config.jsonc apply
 ```
 
+## 停止续期与清理证书
+
+```bash
+uv run acme-cf remove example.com --purge --dry-run  # 预览停止续期和清理范围
+uv run acme-cf remove example.com                    # 仅停止自动续期
+uv run acme-cf remove example.com --purge            # 停止续期并清理本地证书
+uv run acme-cf remove example.com --ecc              # 明确选择 ECC 证书
+uv run acme-cf remove example.com --rsa              # 明确选择 RSA 证书
+```
+
+每次必须明确指定一个域名。程序通过 `acme.sh --info` 获取实际证书目录，自动识别 RSA 或 ECC 证书；两种证书记录同时存在时，需要使用 `--ecc` 或 `--rsa` 明确选择，两者不能同时使用。
+`remove` 调用 `acme.sh --remove` 停止自动续期，保留本地证书文件。
+`--purge` 额外删除 acme.sh 中对应的证书目录，以及 `<ssl_path>/<domain>/private.pem` 和 `fullchain.pem`；安装目录为空时才删除该目录，其他文件保留。
+同一域名的另一种证书仍在续期时，`--purge` 会拒绝清理，避免删除另一张证书可能仍在使用的部署文件；另一种证书已停止续期时不阻止清理。
+已经停止续期的证书可以再次使用 `--purge` 清理。停止续期或文件清理失败时，命令以非零状态退出；`--dry-run` 只查询并显示计划，不执行停止续期或文件删除。
+
+删除安装证书前，请先解除 Nginx/Caddy 配置对这些文件的引用，否则后续重载可能失败。
+删除命令不吊销证书、不删除 Cloudflare DNS，也不执行 `reload_cmd`。
+`config.jsonc` 保持不变，域名仍保留在 `domains` 中；后续运行 `apply` 会再次尝试申请证书。
+
 ## 测试
 
 ```bash
