@@ -1,5 +1,7 @@
 import os
 import time
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import quote
 
 import requests
@@ -72,18 +74,20 @@ class SubscriptionConverter:
         dst_path: str,
         subscription_opts=None,
         append_opts=None,
+        *,
+        emit: Callable[[str], None] = print,
     ) -> bool:
         """
         转换订阅并保存到指定路径
         """
         try:
-            print("开始转换订阅...")
-            print(f"原始订阅URLs: {sub_urls}")
+            emit("开始转换订阅...")
+            emit(f"原始订阅URLs: {sub_urls}")
 
             conversion_url = self.build_conversion_url(
                 sub_urls, subscription_opts, append_opts
             )
-            print(f"转换API URL: {conversion_url[:100]}...")  # 只打印前100字符避免太长
+            emit(f"转换API URL: {conversion_url[:100]}...")  # 只打印前100字符避免太长
 
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
@@ -93,7 +97,7 @@ class SubscriptionConverter:
             response.raise_for_status()
 
             if not response.content:
-                print("错误：API返回空内容")
+                emit("错误：API返回空内容")
                 return False
 
             os.makedirs(os.path.dirname(os.path.abspath(dst_path)), exist_ok=True)
@@ -101,69 +105,137 @@ class SubscriptionConverter:
             with open(dst_path, "wb") as f:
                 f.write(response.content)
 
-            print(f"✅ 订阅转换成功！配置文件已保存至: {dst_path}")
-            print(f"📁 文件大小: {len(response.content)} 字节")
+            emit(f"✅ 订阅转换成功！配置文件已保存至: {dst_path}")
+            emit(f"📁 文件大小: {len(response.content)} 字节")
 
             return True
 
         except requests.exceptions.RequestException as e:
-            print(f"❌ 网络请求错误: {e}")
+            emit(f"❌ 网络请求错误: {e}")
             return False
         except Exception as e:
-            print(f"❌ 转换过程中发生错误: {e}")
+            emit(f"❌ 转换过程中发生错误: {e}")
             return False
 
-    def batch_convert(self, subscriptions: list[dict], out_dir: str) -> dict[str, bool]:
-        """
-        批量转换多个订阅
-        """
-        results = {}
+    def _convert_one(self, sub_config: dict, dst_path: str) -> tuple[bool, list[str]]:
+        """完成一个订阅的转换和还原，并收集该任务的完整日志。"""
+        messages = []
+        sub_urls = sub_config["sub_urls"]
+        subscription_opts = sub_config.get("opts")
+        append_opts = sub_config.get("append_opts")
 
-        for i, sub_config in enumerate(subscriptions):
-            enable = sub_config.get("enable", True)
-            if not enable:
-                print(f"\n⏭️  跳过第 {i + 1}/{len(subscriptions)} 个订阅（未启用）")
-                print(f"📝 配置名称: {sub_config.get('name', '未命名')}")
-                continue
+        if subscription_opts:
+            messages.append(f"⚙️  使用自定义选项: {subscription_opts}")
+        if append_opts:
+            messages.append(f"➕ 追加选项: {append_opts}")
 
-            print(f"\n🔧 正在处理第 {i + 1}/{len(subscriptions)} 个订阅...")
-            print(f"📝 配置名称: {sub_config.get('name', '未命名')}")
-
-            sub_urls = sub_config.get("sub_urls", [])
-            dst_path = sub_config.get("dst_path")
-            subscription_opts = sub_config.get("opts")
-            append_opts = sub_config.get("append_opts")
-
-            if not sub_urls:
-                print("❌ 跳过：sub_urls 为空")
-                continue
-            if not dst_path:
-                print("❌ 跳过：dst_path 为空")
-                continue
-
-            if subscription_opts:
-                print(f"⚙️  使用自定义选项: {subscription_opts}")
-            if append_opts:
-                print(f"➕ 追加选项: {append_opts}")
-
-            if not os.path.isabs(dst_path):
-                dst_path = os.path.join(out_dir, dst_path)
-
+        try:
             success = self.convert_subscription(
                 sub_urls,
                 dst_path,
                 subscription_opts=subscription_opts,
                 append_opts=append_opts,
+                emit=messages.append,
             )
+        except Exception as e:
+            messages.append(f"❌ 转换过程中发生错误: {e}")
+            success = False
+
+        if success:
+            try:
+                restore_proxies(dst_path, sub_urls, emit=messages.append)
+            except Exception as e:
+                messages.append(f"  ⚠️  还原proxies失败: {e}")
+
+        return success, messages
+
+    def batch_convert(
+        self, subscriptions: list[dict], out_dir: str, jobs: int = 1
+    ) -> dict[str, bool]:
+        """
+        批量转换多个订阅
+        """
+        if not isinstance(jobs, int) or jobs < 1:
+            raise ValueError("jobs 必须为正整数")
+
+        tasks = []
+        destinations = {}
+
+        for i, sub_config in enumerate(subscriptions):
+            name = sub_config.get("name", "未命名")
+            enable = sub_config.get("enable", True)
+            if not enable:
+                print(f"\n⏭️  跳过第 {i + 1}/{len(subscriptions)} 个订阅（未启用）")
+                print(f"📝 配置名称: {name}")
+                continue
+
+            sub_urls = sub_config.get("sub_urls", [])
+            dst_path = sub_config.get("dst_path")
+
+            if not sub_urls:
+                print(f"❌ 跳过订阅 '{name}'：sub_urls 为空")
+                continue
+            if not dst_path:
+                print(f"❌ 跳过订阅 '{name}'：dst_path 为空")
+                continue
+
+            if not os.path.isabs(dst_path):
+                dst_path = os.path.join(out_dir, dst_path)
+
+            canonical_path = os.path.normcase(os.path.realpath(dst_path))
+            if canonical_path in destinations:
+                raise ValueError(
+                    f"输出路径冲突: 订阅 '{name}' 与 '{destinations[canonical_path]}' "
+                    f"使用相同目标 {dst_path}"
+                )
+            destinations[canonical_path] = name
+            tasks.append((sub_config, dst_path))
+
+        if not tasks:
+            return {}
+
+        workers = min(jobs, len(tasks))
+        print(f"📋 待转换: {len(tasks)} 个订阅，并发数: {workers}", flush=True)
+        results = {}
+
+        def report(sub_config, dst_path, success, messages):
             results[dst_path] = success
+            name = sub_config.get("name", "未命名")
+            status = "✅ 成功" if success else "❌ 失败"
+            print(
+                "\n".join(
+                    [
+                        f"\n[{len(results)}/{len(tasks)}] 订阅 '{name}': {status}",
+                        *messages,
+                    ]
+                ),
+                flush=True,
+            )
 
-            if success:
-                restore_proxies(dst_path, sub_urls)
+        if jobs == 1:
+            for i, (sub_config, dst_path) in enumerate(tasks):
+                success, messages = self._convert_one(sub_config, dst_path)
+                report(sub_config, dst_path, success, messages)
+                if i < len(tasks) - 1:
+                    time.sleep(2)
+        else:
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                futures = {
+                    executor.submit(self._convert_one, sub_config, dst_path): (
+                        sub_config,
+                        dst_path,
+                    )
+                    for sub_config, dst_path in tasks
+                }
+                for future in as_completed(futures):
+                    sub_config, dst_path = futures[future]
+                    try:
+                        success, messages = future.result()
+                    except Exception as e:
+                        success, messages = False, [f"❌ 订阅处理失败: {e}"]
+                    report(sub_config, dst_path, success, messages)
 
-            if i < len(subscriptions) - 1:
-                time.sleep(2)
-
-        return results
+        return {dst_path: results[dst_path] for _, dst_path in tasks}
 
 
 def load_config_from_toml(config_path: str) -> dict:

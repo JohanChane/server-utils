@@ -22,6 +22,20 @@ The equivalent module entry point is `uv run python -m sub_mgr <command>`.
 Both `convert` and `install` process all enabled subscriptions by default.
 Use `install --name NAME` (or `install -n NAME`) to install a single subscription.
 
+To convert multiple subscriptions concurrently:
+
+```sh
+uv run sub-mgr convert --jobs 4
+uv run sub-mgr convert -j 4
+```
+
+`--jobs` accepts a positive integer and defaults to `1` for sequential processing.
+Each task converts one subscription and restores its proxies before completing.
+The sequential mode keeps the two-second pause between tasks; concurrent mode omits that pause.
+Logs are buffered separately for each task and printed together as soon as that task finishes, without waiting for the others.
+The final summary follows configuration order and reports successful, failed, and skipped subscriptions.
+Subscriptions must use distinct resolved output paths; duplicates are rejected before conversion starts.
+
 ## Tests
 
 Run from the `sub-mgr` directory:

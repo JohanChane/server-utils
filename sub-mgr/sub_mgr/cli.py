@@ -11,6 +11,16 @@ from sub_mgr import (
 )
 
 
+def _positive_jobs(value: str) -> int:
+    try:
+        jobs = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("jobs 必须为正整数") from error
+    if jobs < 1:
+        raise argparse.ArgumentTypeError("jobs 必须为正整数")
+    return jobs
+
+
 def main() -> None:
     """主函数"""
     parser = argparse.ArgumentParser(prog="sub-mgr", description="订阅配置转换工具")
@@ -30,6 +40,9 @@ def main() -> None:
         "-o", "--out-dir", default="./out", help="输出目录路径 (默认: ./out)"
     )
     convert_parser.add_argument("--name", required=False, help="订阅项的名称")
+    convert_parser.add_argument(
+        "-j", "--jobs", type=_positive_jobs, default=1, help="并发任务数 (默认: 1)"
+    )
 
     # list 命令
     list_parser = subparsers.add_parser("list", help="列出订阅配置")
@@ -57,7 +70,10 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.command == "convert":
-        convert_subscriptions(args.config, args.out_dir, args.name)
+        try:
+            convert_subscriptions(args.config, args.out_dir, args.name, jobs=args.jobs)
+        except ValueError as error:
+            parser.error(str(error))
     elif args.command == "list":
         if args.list_command == "url":
             list_location_links(args.config)

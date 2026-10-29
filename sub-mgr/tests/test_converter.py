@@ -1,4 +1,4 @@
-from unittest.mock import Mock, call
+from unittest.mock import ANY, Mock, call
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
@@ -129,10 +129,46 @@ def test_batch_skips_invalid_entries_and_restores_only_successful_conversions(
             successful_destination,
             subscription_opts={"target": "surge"},
             append_opts={"udp": False},
+            emit=ANY,
         ),
-        call(urls, absolute_destination, subscription_opts=None, append_opts=None),
+        call(
+            urls,
+            absolute_destination,
+            subscription_opts=None,
+            append_opts=None,
+            emit=ANY,
+        ),
     ]
-    restore.assert_called_once_with(successful_destination, urls)
+    restore.assert_called_once_with(successful_destination, urls, emit=ANY)
+
+
+@pytest.mark.parametrize("outcome", ["success", "empty", "network"])
+def test_conversion_sends_all_messages_to_task_log(
+    converter, tmp_path, monkeypatch, capsys, outcome
+):
+    response = Mock(content=b"" if outcome == "empty" else b"proxies: []\n")
+    request = Mock(return_value=response)
+    if outcome == "network":
+        request.side_effect = requests.Timeout("request timed out")
+    monkeypatch.setattr(converter_module.requests, "get", request)
+    messages = []
+
+    success = converter.convert_subscription(
+        ["https://provider.example.com/sub"],
+        str(tmp_path / "clash.yaml"),
+        emit=messages.append,
+    )
+
+    assert success is (outcome == "success")
+    assert messages
+    assert "开始转换订阅" in messages[0]
+    expected = {
+        "success": "配置文件已保存至",
+        "empty": "API返回空内容",
+        "network": "request timed out",
+    }
+    assert expected[outcome] in "\n".join(messages)
+    assert capsys.readouterr().out == ""
 
 
 def test_toml_config_round_trip_creates_parent_directories(tmp_path):

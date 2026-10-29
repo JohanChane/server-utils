@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 import requests
 import yaml
 
@@ -11,7 +13,9 @@ def _fetch_proxies_from_url(url: str) -> list:
     return []
 
 
-def _collect_original_proxies(sub_urls: list) -> dict:
+def _collect_original_proxies(
+    sub_urls: list, *, emit: Callable[[str], None] = print
+) -> dict:
     original_map = {}
     for url in sub_urls:
         if not url.startswith(("http://", "https://")):
@@ -23,27 +27,29 @@ def _collect_original_proxies(sub_urls: list) -> dict:
                 if name:
                     original_map[name] = proxy
         except Exception as e:
-            print(f"  ⚠️  获取原始proxies失败 ({url}): {e}")
+            emit(f"  ⚠️  获取原始proxies失败 ({url}): {e}")
             continue
     return original_map
 
 
-def restore_proxies(dst_path: str, sub_urls: list) -> bool:
+def restore_proxies(
+    dst_path: str, sub_urls: list, *, emit: Callable[[str], None] = print
+) -> bool:
     try:
-        original_map = _collect_original_proxies(sub_urls)
+        original_map = _collect_original_proxies(sub_urls, emit=emit)
         if not original_map:
-            print("  ⚠️  未从sub_urls中获取到有效proxies，跳过还原")
+            emit("  ⚠️  未从sub_urls中获取到有效proxies，跳过还原")
             return False
 
         with open(dst_path, "r", encoding="utf-8") as f:
             output_data = yaml.safe_load(f)
 
         if not isinstance(output_data, dict):
-            print("  ⚠️  输出文件格式异常，跳过还原")
+            emit("  ⚠️  输出文件格式异常，跳过还原")
             return False
 
         if "proxies" not in output_data:
-            print("  ⚠️  输出文件中没有proxies字段，跳过还原")
+            emit("  ⚠️  输出文件中没有proxies字段，跳过还原")
             return False
 
         replaced_count = 0
@@ -54,7 +60,7 @@ def restore_proxies(dst_path: str, sub_urls: list) -> bool:
                 replaced_count += 1
 
         if replaced_count == 0:
-            print("  ⚠️  输出文件中没有匹配的proxy name，跳过还原")
+            emit("  ⚠️  输出文件中没有匹配的proxy name，跳过还原")
             return False
 
         with open(dst_path, "w", encoding="utf-8") as f:
@@ -67,11 +73,11 @@ def restore_proxies(dst_path: str, sub_urls: list) -> bool:
                 width=4096,
             )
 
-        print(
+        emit(
             f"  ✅ 已还原 {replaced_count} 个proxies (共收集 {len(original_map)} 个原始proxy)"
         )
         return True
 
     except Exception as e:
-        print(f"  ⚠️  还原proxies失败: {e}")
+        emit(f"  ⚠️  还原proxies失败: {e}")
         return False

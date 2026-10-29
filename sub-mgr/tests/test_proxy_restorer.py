@@ -49,7 +49,7 @@ def test_restore_replaces_by_name_and_preserves_other_configuration(tmp_path, fe
 
 
 def test_restore_uses_last_duplicate_and_skips_invalid_or_failed_sources(
-    tmp_path, fetch
+    tmp_path, fetch, capsys
 ):
     first = {"name": "shared", "server": "first.example.com"}
     last = {"name": "shared", "server": "last.example.com"}
@@ -66,22 +66,42 @@ def test_restore_uses_last_duplicate_and_skips_invalid_or_failed_sources(
         "https://last.example.com/sub",
     ]
 
-    assert restore_proxies(str(path), ["file:///ignored", "ss://ignored", *valid_urls])
+    messages = []
+    assert restore_proxies(
+        str(path),
+        ["file:///ignored", "ss://ignored", *valid_urls],
+        emit=messages.append,
+    )
 
     assert yaml.safe_load(path.read_text(encoding="utf-8")) == {"proxies": [last]}
     assert fetch.call_args_list == [
         call(url, headers={"User-Agent": "mihomo"}, timeout=30) for url in valid_urls
     ]
+    assert len(messages) == 2
+    assert "获取原始proxies失败" in messages[0]
+    assert valid_urls[0] in messages[0]
+    assert "offline" in messages[0]
+    assert "已还原 1 个proxies" in messages[1]
+    assert capsys.readouterr() == ("", "")
 
 
-def test_restore_without_matching_names_keeps_original_file(tmp_path, fetch):
+def test_restore_without_matching_names_keeps_original_file(tmp_path, fetch, capsys):
     path = tmp_path / "clash.yaml"
     original = b"# Preserve this comment\nproxies:\n  - name: unmatched\n"
     path.write_bytes(original)
     fetch.return_value = subscription_response([{"name": "remote"}])
 
-    assert restore_proxies(str(path), ["https://provider.example.com/sub"]) is False
+    messages = []
+    assert (
+        restore_proxies(
+            str(path), ["https://provider.example.com/sub"], emit=messages.append
+        )
+        is False
+    )
     assert path.read_bytes() == original
+    assert len(messages) == 1
+    assert "没有匹配的proxy name" in messages[0]
+    assert capsys.readouterr() == ("", "")
 
 
 @pytest.mark.parametrize("response_text", ["proxies: []\n", "rules: []\n", "- item\n"])
@@ -117,9 +137,21 @@ def test_restore_rejects_invalid_output_without_modifying_it(tmp_path, fetch, ou
     assert path.read_bytes() == output
 
 
-def test_restore_missing_output_returns_false_without_creating_file(tmp_path, fetch):
+def test_restore_missing_output_returns_false_without_creating_file(
+    tmp_path, fetch, capsys
+):
     path = tmp_path / "missing.yaml"
     fetch.return_value = subscription_response([{"name": "remote"}])
 
-    assert restore_proxies(str(path), ["https://provider.example.com/sub"]) is False
+    messages = []
+    assert (
+        restore_proxies(
+            str(path), ["https://provider.example.com/sub"], emit=messages.append
+        )
+        is False
+    )
     assert not path.exists()
+    assert len(messages) == 1
+    assert "还原proxies失败" in messages[0]
+    assert str(path) in messages[0]
+    assert capsys.readouterr() == ("", "")

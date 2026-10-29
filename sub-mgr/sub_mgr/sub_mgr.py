@@ -115,7 +115,7 @@ def list_location_links(config_path: str):
     print(f"📊 总计: {enabled_count} 个启用的订阅配置")
 
 
-def convert_subscriptions(config_path: str, out_dir: str, name: str):
+def convert_subscriptions(config_path: str, out_dir: str, name: str, jobs: int = 1):
     """转换订阅配置"""
     config = load_config_from_toml(config_path)
     if not config:
@@ -156,7 +156,7 @@ def convert_subscriptions(config_path: str, out_dir: str, name: str):
     else:
         print(f"📁 使用现有输出目录: {out_dir}")
 
-    results = converter.batch_convert(subscriptions, out_dir)
+    results = converter.batch_convert(subscriptions, out_dir, jobs=jobs)
 
     # 打印结果摘要
     print("\n" + "=" * 50)
@@ -168,7 +168,9 @@ def convert_subscriptions(config_path: str, out_dir: str, name: str):
         if success:
             success_count += 1
 
-    print(f"\n🎯 总计: {success_count}/{len(subscriptions)} 个订阅转换成功")
+    failed_count = len(results) - success_count
+    skipped_count = len(subscriptions) - len(results)
+    print(f"\n🎯 总计: 成功 {success_count}，失败 {failed_count}，跳过 {skipped_count}")
 
 
 def quick_convert(sub_urls: list[str], dst_path: str):
