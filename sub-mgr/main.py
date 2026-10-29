@@ -53,13 +53,8 @@ def main():
 
     # install 命令
     install_parser = subparsers.add_parser("install", help="安装订阅配置到服务器")
-    install_parser.add_argument("-n", "--name", required=False, help="订阅名称")
     install_parser.add_argument(
-        "-a",
-        "--all",
-        action="store_true",
-        dest="install_all",
-        help="安装所有启用的订阅",
+        "-n", "--name", required=False, help="订阅名称 (默认: 所有启用的订阅)"
     )
 
     args = parser.parse_args()
@@ -74,7 +69,7 @@ def main():
     elif args.command == "create":
         create_subscription(args.config, args.name, args.sub_urls)
     elif args.command == "install":
-        install_subscription(args.config, args.name, install_all=args.install_all)
+        install_subscription(args.config, args.name)
     else:
         parser.print_help()
 

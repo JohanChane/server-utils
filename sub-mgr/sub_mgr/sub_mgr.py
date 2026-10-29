@@ -177,9 +177,7 @@ def quick_convert(sub_urls: list[str], dst_path: str):
     converter.convert_subscription(sub_urls, dst_path)
 
 
-def install_subscription(
-    config_path: str, name: str | None = None, install_all: bool = False
-):
+def install_subscription(config_path: str, name: str | None = None):
     """安装订阅配置到服务器"""
     config = load_config_from_toml(config_path)
     if not config:
@@ -196,7 +194,7 @@ def install_subscription(
         if not subs_to_install:
             print(f"❌ 没有找到名称为 '{name}' 的订阅配置")
             return
-    elif install_all or not name:
+    else:
         subs_to_install = [sub for sub in subscriptions if sub.get("enable", True)]
 
     if not subs_to_install:

@@ -15,6 +15,9 @@ uv run ./main.py convert
 uv run ./main.py install
 ```
 
+Both `convert` and `install` process all enabled subscriptions by default.
+Use `install --name NAME` (or `install -n NAME`) to install a single subscription.
+
 ## Tests
 
 Run from the `sub-mgr` directory:
