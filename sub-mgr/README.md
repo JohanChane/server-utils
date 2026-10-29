@@ -10,10 +10,14 @@ uv sync
 
 ## Usage
 
+Run from the `sub-mgr` directory:
+
 ```sh
-uv run ./main.py convert
-uv run ./main.py install
+uv run sub-mgr convert
+uv run sub-mgr install
 ```
+
+The equivalent module entry point is `uv run python -m sub_mgr <command>`.
 
 Both `convert` and `install` process all enabled subscriptions by default.
 Use `install --name NAME` (or `install -n NAME`) to install a single subscription.

@@ -1,7 +1,4 @@
-#!/usr/bin/env python3
-"""
-SubMgr Main Program Entry
-"""
+"""Command-line interface for SubMgr."""
 
 import argparse
 
@@ -14,9 +11,9 @@ from sub_mgr import (
 )
 
 
-def main():
+def main() -> None:
     """主函数"""
-    parser = argparse.ArgumentParser(description="订阅配置转换工具")
+    parser = argparse.ArgumentParser(prog="sub-mgr", description="订阅配置转换工具")
     parser.add_argument(
         "-c",
         "--config",
@@ -72,7 +69,3 @@ def main():
         install_subscription(args.config, args.name)
     else:
         parser.print_help()
-
-
-if __name__ == "__main__":
-    main()

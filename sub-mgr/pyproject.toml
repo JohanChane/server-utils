@@ -15,7 +15,7 @@ authors = [
 license = { text = "MIT" }
 
 [project.scripts]
-sub-mgr = "main:main"
+sub-mgr = "sub_mgr.cli:main"
 
 [build-system]
 requires = ["hatchling"]
